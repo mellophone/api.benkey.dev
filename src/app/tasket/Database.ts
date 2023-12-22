@@ -66,7 +66,7 @@ export class DBCollection {
     return token;
   };
 
-  public getUser = async (): Promise<UserData> => {
+  public getUser = async (): Promise<SafeUserData> => {
     const verified = this.verifyToken();
     if (!verified) throw Error("Permission denied.");
 
@@ -76,7 +76,8 @@ export class DBCollection {
     const userData = await this.collection.findOne({ _id: new ObjectId(id) });
     if (!userData) throw Error("User not found.");
 
-    return userData as UserData;
+    delete userData.password;
+    return userData as SafeUserData;
   };
 
   public createGroup = async (
@@ -226,10 +227,13 @@ export type DecodedToken = {
   exp: number;
 };
 
-export type UserData = {
+export type UserData = SafeUserData & {
+  password: string;
+};
+
+export type SafeUserData = {
   _id: ObjectId;
   email: string;
-  password: string;
   settings: {};
   groups: {
     [name: string]: GroupData;
