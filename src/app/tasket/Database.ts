@@ -4,12 +4,12 @@ import {
   MongoClient,
   ObjectId,
   ServerApiVersion,
+  Timestamp,
   UpdateFilter,
 } from "mongodb";
 import { collectionName, dbName, dbUri, jwtSecret } from "../../constants";
 import bcrypt from "bcrypt";
 import JWT from "jsonwebtoken";
-import { group } from "console";
 
 export class DBCollection {
   private token = "";
@@ -176,6 +176,9 @@ export class DBCollection {
   public deleteGroup = async (groupName: string) => {
     const userData = await this.getUser();
 
+    const group = userData.groups[groupName];
+    if (!group) throw Error("Group not found.");
+
     const fieldId = `groups.${groupName}`;
     const updateResult = await this.collection.updateOne(
       { _id: userData._id },
@@ -188,9 +191,143 @@ export class DBCollection {
     return updateResult;
   };
 
+  public createEvent = async (groupName: string, eventData: RawEventData) => {
+    const userData = await this.getUser();
+    const newEvent: EventData = {
+      name: eventData.name,
+      description: eventData.description,
+      start_date: this.msStringToTimestamp(eventData.start_date),
+      end_date: this.msStringToTimestamp(eventData.end_date),
+    };
+
+    if (eventData.schedule) {
+      newEvent.schedule = {
+        recurs: eventData.schedule.recurs,
+        recurs_until: this.msStringToTimestamp(eventData.schedule.recurs_until),
+      };
+    }
+
+    const fieldId = `groups.${groupName}.events`;
+
+    const updateResult = await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $push: {
+          [fieldId]: newEvent,
+        },
+      }
+    );
+    if (updateResult.modifiedCount !== 1) throw Error("Event creation failed.");
+
+    return updateResult;
+  };
+
+  public updateEvent = async (
+    groupName: string,
+    eventIndex: number,
+    eventData: OptionalRawEventData
+  ) => {
+    const userData = await this.getUser();
+
+    const event = userData.groups[groupName].events[eventIndex];
+    if (!event) throw Error("Event not found.");
+
+    const eventUpdates: OptionalEventData = {
+      name: eventData.name,
+      description: eventData.description,
+      start_date:
+        (eventData.start_date &&
+          this.msStringToTimestamp(eventData.start_date)) ||
+        undefined,
+      end_date:
+        (eventData.end_date && this.msStringToTimestamp(eventData.end_date)) ||
+        undefined,
+    };
+
+    if (eventData.schedule && !eventData.schedule.recurs)
+      throw Error("Schedule recur value not provided.");
+    if (
+      eventData.schedule &&
+      !EventRecurrenceArray.find(
+        (r) => r === (eventData.schedule as RawEventScheduleData).recurs
+      )
+    )
+      throw Error("Schedule recur value invalid.");
+    if (eventData.schedule && !eventData.schedule.recurs_until)
+      throw Error("Schedule recurs until value not provided.");
+
+    if (eventData.schedule) {
+      eventUpdates.schedule = {
+        recurs: eventData.schedule.recurs,
+        recurs_until: this.msStringToTimestamp(eventData.schedule.recurs_until),
+      };
+    }
+
+    const updateArray = Object.entries(eventUpdates).filter(
+      (entry) => entry[1]
+    );
+
+    const events = userData.groups[groupName].events;
+
+    updateArray.forEach((entry) => {
+      events[eventIndex][entry[0] as keyof EventData] = entry[1] as any;
+    });
+
+    if (updateArray.length === 0)
+      throw Error("No update attributes specified.");
+
+    const fieldId = `groups.${groupName}.events`;
+
+    const updateResult = await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $set: {
+          [fieldId]: events,
+        },
+      }
+    );
+    if (updateResult.matchedCount !== 1) throw Error("Event update failed.");
+
+    return updateResult;
+  };
+
+  public deleteEvent = async (groupName: string, eventIndex: number) => {
+    const userData = await this.getUser();
+
+    const event = userData.groups[groupName].events[eventIndex];
+    if (!event) throw Error("Event not found.");
+
+    const fieldId = `groups.${groupName}.events`;
+    const eventFieldId = `${fieldId}.${eventIndex}`;
+    const updateResult = await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $set: {
+          [eventFieldId]: "null",
+        },
+      }
+    );
+    if (updateResult.modifiedCount !== 1) throw Error("Event deletion failed.");
+
+    await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $pull: {
+          [fieldId]: "null",
+        },
+      }
+    );
+
+    return updateResult;
+  };
+
   private validateColor = (color: string) => {
     if (!color.match(/#[0-9a-fA-F]{6}/) || color.length !== 7)
       throw Error("Provided color value is invalid.");
+  };
+
+  private msStringToTimestamp = (milliseconds: string): Timestamp => {
+    return new Timestamp(BigInt(new Date(parseInt(milliseconds)).getTime()));
   };
 }
 
@@ -259,10 +396,52 @@ export type NamedGroupData = {
   name: string;
 } & GroupData;
 
+export const EventRecurrenceArray = [
+  "Daily",
+  "Weekly",
+  "Monthly-Date",
+  "Monthly-Weekday",
+  "Yearly",
+] as const;
+
+export const EventAttributeArray = [
+  "name",
+  "description",
+  "start_date",
+  "end_date",
+  "schedule",
+] as const;
+
+export type RawEventData = {
+  name: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  schedule?: RawEventScheduleData;
+};
+
+export type OptionalRawEventData = {
+  [n in keyof RawEventData]?: RawEventData[n];
+};
+
+export type RawEventScheduleData = {
+  recurs: (typeof EventRecurrenceArray)[number];
+  recurs_until: string;
+};
+
 export type EventData = {
   name: string;
   description: string;
-  type: string;
-  start: string;
-  end: string;
+  start_date: Timestamp;
+  end_date: Timestamp;
+  schedule?: EventScheduleData;
+};
+
+export type OptionalEventData = {
+  [n in keyof EventData]?: EventData[n];
+};
+
+export type EventScheduleData = {
+  recurs: (typeof EventRecurrenceArray)[number];
+  recurs_until: Timestamp;
 };
