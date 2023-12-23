@@ -86,7 +86,8 @@ export class DBCollection {
 
   public createGroup = async (
     groupName: string,
-    groupColor: string = "#0000FF"
+    groupColor: string = "#0000FF",
+    groupType: string = "Class"
   ) => {
     this.validateColor(groupColor);
 
@@ -96,7 +97,7 @@ export class DBCollection {
 
     const newGroup: GroupData = {
       color: groupColor,
-      type: "Class",
+      type: groupType,
       events: [],
       assignments: [],
     };

@@ -4,11 +4,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const { name, color } = body;
+    const { name, color, type } = body;
     if (!name) throw Error("Group name not provided.");
 
     const collection = await DBClient.getCollection();
-    await collection.extractToken(req).createGroup(name, color);
+    await collection.extractToken(req).createGroup(name, color, type);
 
     return Response.json({ message: "Successfully created new group." });
   } catch (e) {
