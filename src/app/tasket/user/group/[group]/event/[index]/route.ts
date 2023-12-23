@@ -8,8 +8,8 @@ export async function PATCH(
     const body = await req.json();
 
     const { group, index } = params;
-    const eventIndex = parseInt(index);
 
+    const eventIndex = parseInt(index);
     if (Number.isNaN(eventIndex)) throw Error("Event index is invalid.");
 
     const collection = await DBClient.getCollection();
@@ -28,8 +28,8 @@ export async function DELETE(
 ) {
   try {
     const { group, index } = params;
-    const eventIndex = parseInt(index);
 
+    const eventIndex = parseInt(index);
     if (Number.isNaN(eventIndex)) throw Error("Event index is invalid.");
 
     const collection = await DBClient.getCollection();

@@ -10,6 +10,10 @@ import {
 import { collectionName, dbName, dbUri, jwtSecret } from "../../constants";
 import bcrypt from "bcrypt";
 import JWT from "jsonwebtoken";
+import {
+  AssignmentData,
+  PartialAssignmentData,
+} from "./user/group/[group]/assignment/assignmentTypes";
 
 export class DBCollection {
   private token = "";
@@ -321,6 +325,99 @@ export class DBCollection {
     return updateResult;
   };
 
+  public createAssignment = async (
+    groupName: string,
+    assignmentData: AssignmentData
+  ) => {
+    const userData = await this.getUser();
+    const fieldId = `groups.${groupName}.assignments`;
+
+    const updateResult = await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $push: {
+          [fieldId]: assignmentData,
+        },
+      }
+    );
+    if (updateResult.modifiedCount !== 1)
+      throw Error("Assignment creation failed.");
+
+    return updateResult;
+  };
+
+  public updateAssignment = async (
+    groupName: string,
+    assignmentIndex: number,
+    partialAssignmentData: PartialAssignmentData
+  ) => {
+    const userData = await this.getUser();
+
+    const assignment = userData.groups[groupName].assignments[assignmentIndex];
+    if (!assignment) throw Error("Assignment not found.");
+
+    const updateArray = Object.entries(partialAssignmentData).filter(
+      (entry) => entry[1] !== undefined
+    );
+
+    const assignments = userData.groups[groupName].assignments;
+
+    updateArray.forEach((entry) => {
+      assignments[assignmentIndex][entry[0] as keyof AssignmentData] =
+        entry[1] as any;
+    });
+
+    const fieldId = `groups.${groupName}.assignments`;
+
+    const updateResult = await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $set: {
+          [fieldId]: assignments,
+        },
+      }
+    );
+    if (updateResult.matchedCount !== 1)
+      throw Error("Assignment update failed.");
+
+    return updateResult;
+  };
+
+  public deleteAssignment = async (
+    groupName: string,
+    assignmentIndex: number
+  ) => {
+    const userData = await this.getUser();
+
+    const assignment = userData.groups[groupName].assignments[assignmentIndex];
+    if (!assignment) throw Error("Assignment not found.");
+
+    const fieldId = `groups.${groupName}.assignments`;
+    const assignmentFieldId = `${fieldId}.${assignmentIndex}`;
+
+    const updateResult = await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $set: {
+          [assignmentFieldId]: "null",
+        },
+      }
+    );
+    if (updateResult.modifiedCount !== 1)
+      throw Error("Assignment deletion failed.");
+
+    await this.collection.updateOne(
+      { _id: userData._id },
+      {
+        $pull: {
+          [fieldId]: "null",
+        },
+      }
+    );
+
+    return updateResult;
+  };
+
   private validateColor = (color: string) => {
     if (!color.match(/#[0-9a-fA-F]{6}/) || color.length !== 7)
       throw Error("Provided color value is invalid.");
@@ -379,7 +476,7 @@ export type SafeUserData = {
 
 export type GroupData = GroupAttributes & {
   events: EventData[];
-  assignments: [];
+  assignments: AssignmentData[];
 };
 
 export const GroupAttributeArray = ["color", "type"] as const;
