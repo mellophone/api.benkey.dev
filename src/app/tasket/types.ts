@@ -1,10 +1,10 @@
 import { Timestamp } from "mongodb";
 
 export const validateData = <T>(
-  obj: any,
-  OptionMap: any,
-  TimestampArray: any,
-  StringArray: any
+  obj: RandomObject,
+  OptionMap: OptionMap,
+  TimestampArray: ExplicitStringArray,
+  StringArray: ExplicitStringArray
 ): T => {
   for (const key of [
     ...Object.keys(OptionMap),
@@ -18,15 +18,15 @@ export const validateData = <T>(
 };
 
 export const validatePartialData = <T>(
-  obj: any,
-  OptionMap: any,
-  TimestampArray: any,
-  StringArray: any
+  obj: RandomObject,
+  OptionMap: OptionMap,
+  TimestampArray: ExplicitStringArray,
+  StringArray: ExplicitStringArray
 ): T => {
   for (const key in OptionMap) {
     if (
       obj[key] !== undefined &&
-      !OptionMap[key as keyof typeof OptionMap].find((o: any) => o === obj[key])
+      !OptionMap[key].find((o: string) => o === obj[key])
     ) {
       throw Error(`Provided ${key} value is invalid.`);
     }
@@ -42,10 +42,10 @@ export const validatePartialData = <T>(
 };
 
 export const getPartialObjectData = <T>(
-  obj: any,
-  OptionMap: any,
-  TimestampArray: any,
-  StringArray: any
+  obj: RandomObject,
+  OptionMap: OptionMap,
+  TimestampArray: ExplicitStringArray,
+  StringArray: ExplicitStringArray
 ): T => {
   const pasd: any = {};
 
@@ -53,13 +53,13 @@ export const getPartialObjectData = <T>(
 
   typeTFields.forEach((field) => {
     if (obj[field] !== undefined) {
-      pasd[field as keyof T] = obj[field];
+      pasd[field] = obj[field];
     }
   });
 
   TimestampArray.forEach((field: string) => {
     if (obj[field] !== undefined) {
-      pasd[field as keyof T] = msStringToTimestamp(obj[field]);
+      pasd[field] = msStringToTimestamp(obj[field]);
     }
   });
 
@@ -73,17 +73,23 @@ export const msStringToTimestamp = (milliseconds: string): Timestamp => {
   return new Timestamp(BigInt(new Date(parseInt(milliseconds)).getTime()));
 };
 
-export type StringAttributes<ArrayT extends readonly string[]> = {
+export type StringAttributes<ArrayT extends ExplicitStringArray> = {
   [stringField in ArrayT[number]]: string;
 };
 
-export type TimestampAttributes<ArrayT extends readonly string[]> = {
+export type TimestampAttributes<ArrayT extends ExplicitStringArray> = {
   [timestampField in ArrayT[number]]: Timestamp;
 };
 
-export type OptionMap = {
-  [n: string]: readonly string[];
+export type RandomObject = {
+  [n: string]: any;
 };
+
+export type OptionMap = {
+  [n: string]: ExplicitStringArray;
+};
+
+export type ExplicitStringArray = readonly string[];
 
 export type OptionAttributes<ObjectMapT extends OptionMap> = {
   [optionField in keyof ObjectMapT]: ObjectMapT[optionField];
