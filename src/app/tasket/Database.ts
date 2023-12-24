@@ -7,13 +7,20 @@ import {
   Timestamp,
   UpdateFilter,
 } from "mongodb";
-import { collectionName, dbName, dbUri, jwtSecret } from "../../constants";
+import {
+  collectionName,
+  dbName,
+  dbUri,
+  jwtSecret,
+  tokenCookieName,
+} from "../../constants";
 import bcrypt from "bcrypt";
 import JWT from "jsonwebtoken";
 import {
   AssignmentData,
   PartialAssignmentData,
 } from "./user/group/[group]/assignment/assignmentTypes";
+import { parseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 
 export class DBCollection {
   private token = "";
@@ -37,7 +44,11 @@ export class DBCollection {
   };
 
   public extractToken = (req: Request): DBCollection => {
-    this.token = req.headers.get("Authorization")?.split(" ")[1] ?? "";
+    const cookieString = req.headers.get("Cookie");
+    if (!cookieString) return this;
+
+    this.token = parseCookie(cookieString).get(tokenCookieName) ?? "";
+
     return this;
   };
 

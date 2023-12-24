@@ -1,4 +1,5 @@
 import { DBClient } from "../Database";
+import { tokenCookieName } from "../../../constants";
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +12,12 @@ export async function POST(req: Request) {
     const collection = await DBClient.getCollection();
     const token = await collection.login(email, password);
 
-    return Response.json({ message: "Successfully logged in.", token });
+    const tokenCookie = `${tokenCookieName}=${token}; Secure; HttpOnly; SameSite=Strict`;
+
+    const res = Response.json({ message: "Successfully logged in." });
+    res.headers.append("Set-Cookie", tokenCookie);
+
+    return res;
   } catch (e) {
     const errorMessage = `${e}`.substring(`${e}`.indexOf(" ") + 1);
     return Response.json({ errors: [errorMessage] }, { status: 400 });
