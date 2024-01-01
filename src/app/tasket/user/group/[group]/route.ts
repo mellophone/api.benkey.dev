@@ -11,8 +11,8 @@ export async function PATCH(
     const { group } = params;
     if (!group) throw Error("Group name not provided.");
 
-    const collection = await DBClient.getCollection();
-    await collection.extractToken(req).updateGroup(group, body, body.name);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.updateGroup(group, body, body.name);
 
     return Response.json({ message: "Successfully updated group." });
   } catch (e) {
@@ -29,8 +29,8 @@ export async function DELETE(
     const { group } = params;
     if (!group) throw Error("Group name not provided.");
 
-    const collection = await DBClient.getCollection();
-    await collection.extractToken(req).deleteGroup(group);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.deleteGroup(group);
 
     return Response.json({ message: "Successfully deleted group." });
   } catch (e) {

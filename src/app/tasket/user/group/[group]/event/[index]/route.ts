@@ -12,8 +12,8 @@ export async function PATCH(
     const eventIndex = parseInt(index);
     if (Number.isNaN(eventIndex)) throw Error("Event index is invalid.");
 
-    const collection = await DBClient.getCollection();
-    await collection.extractToken(req).updateEvent(group, eventIndex, body);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.updateEvent(group, eventIndex, body);
 
     return Response.json({ message: "Successfully updated event." });
   } catch (e) {
@@ -32,8 +32,8 @@ export async function DELETE(
     const eventIndex = parseInt(index);
     if (Number.isNaN(eventIndex)) throw Error("Event index is invalid.");
 
-    const collection = await DBClient.getCollection();
-    await collection.extractToken(req).deleteEvent(group, eventIndex);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.deleteEvent(group, eventIndex);
 
     return Response.json({ message: "Successfully deleted event." });
   } catch (e) {

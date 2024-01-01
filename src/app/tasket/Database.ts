@@ -23,18 +23,9 @@ import {
 import { parseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 
 export class DBCollection {
-  private token = "";
+  constructor(public collection: Collection) {}
 
-  constructor(private collection: Collection) {}
-
-  private verifyToken = (): DecodedToken => {
-    if (!this.token) throw Error("No token provided.");
-
-    const decoded = JWT.verify(this.token, jwtSecret);
-    return decoded as DecodedToken;
-  };
-
-  private createToken = (userObjectId: string) => {
+  private static createToken = (userObjectId: string) => {
     const token = JWT.sign({ id: userObjectId }, jwtSecret, {
       algorithm: "HS256",
       expiresIn: "7d",
@@ -43,16 +34,10 @@ export class DBCollection {
     return token;
   };
 
-  public extractToken = (req: Request): DBCollection => {
-    const cookieString = req.headers.get("Cookie");
-    if (!cookieString) return this;
-
-    this.token = parseCookie(cookieString).get(tokenCookieName) ?? "";
-
-    return this;
-  };
-
-  public createUser = async (email: string, password: string) => {
+  public createUser = async (
+    email: string,
+    password: string
+  ): Promise<string> => {
     const findResult = await this.collection.findOne({ email });
     if (findResult) throw Error("User with specified email already exists.");
 
@@ -62,12 +47,12 @@ export class DBCollection {
     const result = await this.collection.insertOne(userData);
     const id = result.insertedId.toString();
 
-    const token = this.createToken(id);
+    const token = DBCollection.createToken(id);
 
     return token;
   };
 
-  public login = async (email: string, password: string) => {
+  public login = async (email: string, password: string): Promise<string> => {
     const findResult = await this.collection.findOne({ email });
     if (!findResult) throw Error("User not found.");
 
@@ -76,16 +61,28 @@ export class DBCollection {
     if (!passwordMatch) throw Error("Email and/or password is incorrect.");
 
     const id = userData._id.toString();
-    const token = this.createToken(id);
+    const token = DBCollection.createToken(id);
 
     return token;
   };
 
-  public getUser = async (): Promise<SafeUserData> => {
-    const verified = this.verifyToken();
-    if (!verified) throw Error("Permission denied.");
+  public static validateColor = (color: string) => {
+    if (!color.match(/#[0-9a-fA-F]{6}/) || color.length !== 7)
+      throw Error("Provided color value is invalid.");
+  };
 
-    const { id } = verified;
+  public static msStringToTimestamp = (milliseconds: string): Timestamp => {
+    return new Timestamp(BigInt(new Date(parseInt(milliseconds)).getTime()));
+  };
+}
+
+export class ProtectedDBCollection extends DBCollection {
+  constructor(collection: Collection, private decodedToken: DecodedToken) {
+    super(collection);
+  }
+
+  public getUser = async (): Promise<SafeUserData> => {
+    const { id } = this.decodedToken;
     if (!id) throw Error("Token content not found.");
 
     const userData = await this.collection.findOne({ _id: new ObjectId(id) });
@@ -100,7 +97,7 @@ export class DBCollection {
     groupColor: string = "#0000FF",
     groupType: string = "Class"
   ) => {
-    this.validateColor(groupColor);
+    DBCollection.validateColor(groupColor);
 
     const userData = await this.getUser();
     if (userData.groups[groupName])
@@ -133,7 +130,8 @@ export class DBCollection {
     groupAttributes: OptionalGroupAttributes,
     newGroupName?: string
   ) => {
-    if (groupAttributes.color) this.validateColor(groupAttributes.color);
+    if (groupAttributes.color)
+      DBCollection.validateColor(groupAttributes.color);
 
     const userData = await this.getUser();
 
@@ -212,14 +210,16 @@ export class DBCollection {
     const newEvent: EventData = {
       name: eventData.name,
       description: eventData.description,
-      start_date: this.msStringToTimestamp(eventData.start_date),
-      end_date: this.msStringToTimestamp(eventData.end_date),
+      start_date: DBCollection.msStringToTimestamp(eventData.start_date),
+      end_date: DBCollection.msStringToTimestamp(eventData.end_date),
     };
 
     if (eventData.schedule) {
       newEvent.schedule = {
         recurs: eventData.schedule.recurs,
-        recurs_until: this.msStringToTimestamp(eventData.schedule.recurs_until),
+        recurs_until: DBCollection.msStringToTimestamp(
+          eventData.schedule.recurs_until
+        ),
       };
     }
 
@@ -253,10 +253,11 @@ export class DBCollection {
       description: eventData.description,
       start_date:
         (eventData.start_date &&
-          this.msStringToTimestamp(eventData.start_date)) ||
+          DBCollection.msStringToTimestamp(eventData.start_date)) ||
         undefined,
       end_date:
-        (eventData.end_date && this.msStringToTimestamp(eventData.end_date)) ||
+        (eventData.end_date &&
+          DBCollection.msStringToTimestamp(eventData.end_date)) ||
         undefined,
     };
 
@@ -275,7 +276,9 @@ export class DBCollection {
     if (eventData.schedule) {
       eventUpdates.schedule = {
         recurs: eventData.schedule.recurs,
-        recurs_until: this.msStringToTimestamp(eventData.schedule.recurs_until),
+        recurs_until: DBCollection.msStringToTimestamp(
+          eventData.schedule.recurs_until
+        ),
       };
     }
 
@@ -429,19 +432,17 @@ export class DBCollection {
 
     return updateResult;
   };
-
-  private validateColor = (color: string) => {
-    if (!color.match(/#[0-9a-fA-F]{6}/) || color.length !== 7)
-      throw Error("Provided color value is invalid.");
-  };
-
-  private msStringToTimestamp = (milliseconds: string): Timestamp => {
-    return new Timestamp(BigInt(new Date(parseInt(milliseconds)).getTime()));
-  };
 }
 
 export class DBClient {
-  static connect = async (): Promise<MongoClient> => {
+  private static getCollection = async (): Promise<Collection> => {
+    const client = await this.connect();
+    const collection = client.db(dbName).collection(collectionName);
+
+    return collection;
+  };
+
+  private static connect = async (): Promise<MongoClient> => {
     try {
       const client = new MongoClient(dbUri, {
         serverApi: {
@@ -459,11 +460,36 @@ export class DBClient {
     }
   };
 
-  static getCollection = async (): Promise<DBCollection> => {
-    const client = await this.connect();
-    const collection = client.db(dbName).collection(collectionName);
+  private static extractToken = (req: Request): string => {
+    const cookieString = req.headers.get("Cookie");
+    if (!cookieString) throw Error("No token provided.");
 
+    const token = parseCookie(cookieString).get(tokenCookieName);
+    if (!token) throw Error("No token provided.");
+
+    return token;
+  };
+
+  private static verifyToken = (encodedToken: string): DecodedToken => {
+    const decodedToken = JWT.verify(encodedToken, jwtSecret);
+    if (!decodedToken) throw Error("Permission denied.");
+
+    return decodedToken as DecodedToken;
+  };
+
+  public static getDBCollection = async (): Promise<DBCollection> => {
+    const collection = await this.getCollection();
     return new DBCollection(collection);
+  };
+
+  public static getProtectedDBCollection = async (
+    req: Request
+  ): Promise<ProtectedDBCollection> => {
+    const token = this.extractToken(req);
+    const decodedToken = this.verifyToken(token);
+
+    const collection = await this.getCollection();
+    return new ProtectedDBCollection(collection, decodedToken);
   };
 }
 

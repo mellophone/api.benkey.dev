@@ -1,5 +1,5 @@
-import { DBClient } from "../Database";
-import { tokenCookieName } from "../../../constants";
+import { DBClient } from "../../Database";
+import { tokenCookieName } from "../../../../constants";
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
 
     if (!email || !password) throw Error("Email and/or password not provided.");
 
-    const collection = await DBClient.getCollection();
+    const collection = await DBClient.getDBCollection();
     const token = await collection.login(email, password);
 
     const tokenCookie = `${tokenCookieName}=${token}; Secure; HttpOnly; SameSite=Strict`;

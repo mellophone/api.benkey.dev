@@ -20,8 +20,8 @@ export async function POST(
     if (schedule && !schedule.recurs_until)
       throw Error("Schedule recurs until value not provided.");
 
-    const collection = await DBClient.getCollection();
-    await collection.extractToken(req).createEvent(params.group, body);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.createEvent(params.group, body);
 
     return Response.json({ message: "Successfully created new event." });
   } catch (e) {

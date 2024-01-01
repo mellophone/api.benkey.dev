@@ -16,10 +16,12 @@ export async function PATCH(
 
     const partialAssignmentData = validatePartialAssignmentData(body);
 
-    const collection = await DBClient.getCollection();
-    await collection
-      .extractToken(req)
-      .updateAssignment(group, assignmentIndex, partialAssignmentData);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.updateAssignment(
+      group,
+      assignmentIndex,
+      partialAssignmentData
+    );
 
     return Response.json({ message: "Successfully updated assignment." });
   } catch (e) {
@@ -39,8 +41,8 @@ export async function DELETE(
     if (Number.isNaN(assignmentIndex))
       throw Error("Assignment index is invalid.");
 
-    const collection = await DBClient.getCollection();
-    await collection.extractToken(req).deleteAssignment(group, assignmentIndex);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.deleteAssignment(group, assignmentIndex);
 
     return Response.json({ message: "Successfully deleted assignment." });
   } catch (e) {

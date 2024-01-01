@@ -9,10 +9,8 @@ export async function POST(
     const body = await req.json();
     const assignmentData = validateAssignmentData(body);
 
-    const collection = await DBClient.getCollection();
-    await collection
-      .extractToken(req)
-      .createAssignment(params.group, assignmentData);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.createAssignment(params.group, assignmentData);
 
     return Response.json({
       message: "Successfully created new assignment.",
