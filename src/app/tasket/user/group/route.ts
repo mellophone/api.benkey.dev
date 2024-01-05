@@ -7,8 +7,8 @@ export async function POST(req: Request) {
     const { name, color, type } = body;
     if (!name) throw Error("Group name not provided.");
 
-    const collection = await DBClient.getCollection();
-    await collection.extractToken(req).createGroup(name, color, type);
+    const collection = await DBClient.getProtectedDBCollection(req);
+    await collection.createGroup(name, color, type);
 
     return Response.json({ message: "Successfully created new group." });
   } catch (e) {
