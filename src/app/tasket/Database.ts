@@ -25,13 +25,15 @@ import { parseCookie } from "next/dist/compiled/@edge-runtime/cookies";
 export class DBCollection {
   constructor(public collection: Collection) {}
 
-  private static createToken = (userObjectId: string) => {
+  private static createTokenCookie = (userObjectId: string) => {
     const token = JWT.sign({ id: userObjectId }, jwtSecret, {
       algorithm: "HS256",
       expiresIn: "7d",
     });
 
-    return token;
+    const tokenCookie = `${tokenCookieName}=${token}; SameSite=None; Secure; HttpOnly; Path=/tasket`;
+
+    return tokenCookie;
   };
 
   public createUser = async (
@@ -47,9 +49,9 @@ export class DBCollection {
     const result = await this.collection.insertOne(userData);
     const id = result.insertedId.toString();
 
-    const token = DBCollection.createToken(id);
+    const tokenCookie = DBCollection.createTokenCookie(id);
 
-    return token;
+    return tokenCookie;
   };
 
   public login = async (email: string, password: string): Promise<string> => {
@@ -61,9 +63,9 @@ export class DBCollection {
     if (!passwordMatch) throw Error("Email and/or password is incorrect.");
 
     const id = userData._id.toString();
-    const token = DBCollection.createToken(id);
+    const tokenCookie = DBCollection.createTokenCookie(id);
 
-    return token;
+    return tokenCookie;
   };
 
   public static validateColor = (color: string) => {

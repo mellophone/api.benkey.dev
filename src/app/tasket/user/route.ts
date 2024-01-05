@@ -21,9 +21,12 @@ export async function POST(req: Request) {
     if (!email || !password) throw Error("Email and/or password not provided.");
 
     const collection = await DBClient.getDBCollection();
-    const token = await collection.createUser(email, password);
+    const tokenCookie = await collection.createUser(email, password);
 
-    return Response.json({ message: "Successfully created new user.", token });
+    return Response.json(
+      { message: "Successfully created new user." },
+      { headers: [["Set-Cookie", tokenCookie]] }
+    );
   } catch (e) {
     const errorMessage = `${e}`.substring(`${e}`.indexOf(" ") + 1);
     return Response.json({ errors: [errorMessage] }, { status: 400 });
